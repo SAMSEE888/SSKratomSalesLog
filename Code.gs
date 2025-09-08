@@ -13,9 +13,9 @@ function doPost(e) {
     // ตรวจสอบและสร้างหัวตารางหากยังไม่มี
     if (sheet.getLastRow() < 1) {
       const headers = [
-        'Timestamp', 'Date', 'Sold (bottles)', 'Pending (bottles)', 'Cleared (bottles)',
+        'Date', 'Sold (bottles)', 'Pending (bottles)', 'Cleared (bottles)',
         'Pipe Fee', 'Share Fee', 'Other Fee', 'Save Fee',
-        'Revenue', 'Expense', 'Balance'
+        'Revenue', 'Expense', 'Balance', 'Timestamp'
       ];
       sheet.appendRow(headers);
     }
@@ -29,7 +29,6 @@ function doPost(e) {
     // วนลูปเพื่อบันทึกทุกรายการข้อมูล
     records.forEach(record => {
       const newRow = [
-        new Date(),
         record.date,
         record.sold,
         record.pending,
@@ -40,7 +39,8 @@ function doPost(e) {
         record.saveFee,
         record.revenue,
         record.expense,
-        record.balance
+        record.balance,
+        new Date()
       ];
       sheet.appendRow(newRow);
     });
