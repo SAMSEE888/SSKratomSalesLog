@@ -1,7 +1,7 @@
 // ID ของ Google Sheet ที่ต้องการบันทึกข้อมูล
 const SHEET_ID = '11vhg37MbHRm53SSEHLsCI3EBXx5_meXVvlRuqhFteaY';
 // ชื่อของชีต (แท็บ) ที่ต้องการบันทึกข้อมูล
-const SHEET_NAME = 'SaleForm'; // <-- **สำคัญ:** กรุณาสร้างชีตชื่อนี้ในไฟล์ของคุณ
+const SHEET_NAME = 'SaleForm';
 
 /**
  * ฟังก์ชันหลักที่ทำงานเมื่อมีการส่งข้อมูลแบบ POST เข้ามา
@@ -13,9 +13,18 @@ function doPost(e) {
     // ตรวจสอบและสร้างหัวตารางหากยังไม่มี
     if (sheet.getLastRow() < 1) {
       const headers = [
-        'Date', 'Sold (bottles)', 'Pending (bottles)', 'Cleared (bottles)',
-        'Pipe Fee', 'Share Fee', 'Other Fee', 'Save Fee',
-        'Revenue', 'Expense', 'Balance', 'Timestamp'
+        'date',
+        'sold',
+        'pending', 
+        'cleared',
+        'revenue',
+        'pipeFee',
+        'shareFee',
+        'otherFee',
+        'saveFee',
+        'expense',
+        'balance',
+        'timestamp'
       ];
       sheet.appendRow(headers);
     }
@@ -29,18 +38,18 @@ function doPost(e) {
     // วนลูปเพื่อบันทึกทุกรายการข้อมูล
     records.forEach(record => {
       const newRow = [
-        record.date,
-        record.sold,
-        record.pending,
-        record.cleared,
-        record.pipeFee,
-        record.shareFee,
-        record.otherFee,
-        record.saveFee,
-        record.revenue,
-        record.expense,
-        record.balance,
-        new Date()
+        record.date,         // date
+        record.sold,         // sold
+        record.pending,      // pending
+        record.cleared,      // cleared
+        record.revenue,      // revenue
+        record.pipeFee,      // pipeFee
+        record.shareFee,     // shareFee  
+        record.otherFee,     // otherFee
+        record.saveFee,      // saveFee
+        record.expense,      // expense
+        record.balance,      // balance
+        new Date()           // timestamp
       ];
       sheet.appendRow(newRow);
     });
