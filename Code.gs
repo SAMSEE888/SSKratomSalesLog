@@ -9,42 +9,43 @@ const SHEET_NAME = 'SaleForm'; // <-- **สำคัญ:** กรุณาสร
 function doPost(e) {
   try {
     const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-
     // ตรวจสอบและสร้างหัวตารางหากยังไม่มี
     if (sheet.getLastRow() < 1) {
       const headers = [
-        'Date', 'Sold (bottles)', 'Pending (bottles)', 'Cleared (bottles)',
+        'Date', 'Sold (bottles)', 'Pending (bottles)', 'Cleared (bottles)', 'Revenue',
         'Pipe Fee', 'Share Fee', 'Other Fee', 'Save Fee',
-        'Revenue', 'Expense', 'Balance', 'Timestamp'
+        'Expense', 'Balance', 'Timestamp'
       ];
       sheet.appendRow(headers);
     }
     
     // แปลงข้อมูลที่ส่งมา (JSON)
     const requestData = JSON.parse(e.postData.contents);
-    
     // ตรวจสอบว่าข้อมูลที่ส่งมาเป็น array (สำหรับ offline sync) หรือ object เดียว
     const records = Array.isArray(requestData) ? requestData : [requestData];
-
+    
     // วนลูปเพื่อบันทึกทุกรายการข้อมูล
     records.forEach(record => {
+      // ✨ แก้ไข: จัดรูปแบบวันที่และเวลาสำหรับโซนเวลาประเทศไทย
+      const timestamp = Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyy-MM-dd HH:mm:ss");
+      
       const newRow = [
         record.date,
         record.sold,
         record.pending,
         record.cleared,
+        record.revenue,
         record.pipeFee,
         record.shareFee,
         record.otherFee,
         record.saveFee,
-        record.revenue,
         record.expense,
         record.balance,
-        new Date()
+        timestamp // <-- ใช้ค่าเวลาที่จัดรูปแบบแล้ว
       ];
       sheet.appendRow(newRow);
     });
-    
+
     // ส่งคำตอบกลับไปว่าสำเร็จ
     return ContentService
       .createTextOutput(JSON.stringify({ 'status': 'success', 'message': 'Data saved successfully', 'records_count': records.length }))
