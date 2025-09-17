@@ -137,7 +137,7 @@
       <div class="action-buttons">
         <a class="action-btn sheet-btn" href="https://docs.google.com/spreadsheets/d/11vhg37MbHRm53SSEHLsCI3EBXx5_meXVvlRuqhFteaY/edit#gid=0" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> ดูประวัติในชีต</a>
         <a class="action-btn report-btn" href="https://script.google.com/macros/s/AKfycbwmtGEiPpyJVqeH51dkgPT1l7RRRXkcNNs4MQSYpFMXweZMuilmZQ-YIKn06Db-uZv3aw/exec" target="_blank" rel="noopener noreferrer"><i class="fas fa-chart-pie"></i> ดูรายงาน</a>
-        <a class="action-btn report-btn" href="https://kratomymt888.netlify.app" target="_blank" rel="noopener noreferrer"><i class="fas link"></i> KratomYMT</a>
+        <a class="action-btn report-btn" href="https://kratomymt888.netlify.app" target="_blank" rel="noopener noreferrer"><i class="fas fa-link"></i> KratomYMT</a>
       </div>
 
       <div id="msg" class="msg-box" style="display: none;"></div>
@@ -219,7 +219,6 @@
       dbRequest.onerror = event => console.error('DB Error:', event.target.errorCode);
       
       // --- App Logic ---
-      // ⬇️⬇️⬇️ **สำคัญ:** กรุณานำ Web App URL ที่ได้จาก Google Apps Script มาวางที่นี่ ⬇️⬇️⬇️
       const HOOK_URL = 'https://script.google.com/macros/s/AKfycbxcz209lJDCwls20sDnXMG8V2uP5rUowZ5JWCjG8JEhSfCCyAAWJBBv4sBUrnofuYJH/exec'; 
       const PRICE_PER_BOTTLE = 40;
 
@@ -239,13 +238,21 @@
         revenue: document.getElementById('revenue'), expense: document.getElementById('expense'), balance: document.getElementById('balance'),
       };
 
+      // --- Helper Functions ---
+      const getNum = (el) => parseFloat(el.value) || 0;
+      const formatCurrency = (num) => num.toLocaleString('th-TH');
+      const getLocalDateString = () => {
+          const date = new Date();
+          const year = date.getFullYear();
+          const month = (date.getMonth() + 1).toString().padStart(2, '0');
+          const day = date.getDate().toString().padStart(2, '0');
+          return `${year}-${month}-${day}`;
+      };
+
       // --- Initial Setup ---
-      dateInput.value = new Date().toISOString().substr(0, 10);
+      dateInput.value = getLocalDateString();
 
       // --- Calculation Functions ---
-      const getNum = (el) => parseFloat(el.value) || 0;
-      const formatCurrency = (num) => num.toLocaleString('th-TH'); // ปรับเป็น th-TH
-
       function calculateAll() {
         const soldVal = getNum(inputs.sold);
         const pendingVal = getNum(inputs.pending);
@@ -294,7 +301,6 @@
           balance: calcs.balance
         };
 
-        // --- ⭐ ส่วนที่เพิ่มเข้ามา: สร้างข้อความและแสดงกล่องโต้ตอบเพื่อยืนยัน ⭐ ---
         const confirmationMessage = `
           *** กรุณาตรวจสอบข้อมูลก่อนบันทึก ***
 
@@ -310,9 +316,8 @@
 
         if (!confirm(confirmationMessage)) {
             showMessage('การบันทึกถูกยกเลิก', 'warning');
-            return; // หยุดการทำงานถ้าผู้ใช้กดยกเลิก
+            return;
         }
-        // --- จบส่วนที่เพิ่มเข้ามา ---
 
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
@@ -321,21 +326,23 @@
           try {
             const response = await fetch(HOOK_URL, {
                 method: 'POST',
-                // ใช้ mode 'no-cors' อาจจำเป็นสำหรับ Apps Script web app พื้นฐาน
-                // แต่การตอบกลับจะไม่สามารถอ่านได้ ให้ใช้ text/plain ใน Apps Script แทน JSON
-                // ในที่นี้จะลองแบบปกติก่อน หากติด CORS ให้เปลี่ยน
-                // mode: 'no-cors', 
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Apps Script รับ text/plain ได้ดีกว่า
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             });
-            const result = await response.json(); // รอรับการตอบกลับแบบ JSON
+
+            // ⭐ [IMPROVED] Check if the server responded with an error status
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+
+            const result = await response.json();
             
             if (result.status === 'success') {
               showMessage('✅ บันทึกข้อมูลออนไลน์สำเร็จ!', 'success');
               showToast('บันทึกข้อมูลสำเร็จแล้ว');
               resetForm();
             } else {
-              throw new Error(result.message || 'Server returned error status');
+              throw new Error(result.message || 'Server returned an error status');
             }
           } catch (error) {
              console.error('Fetch Error:', error);
@@ -374,7 +381,8 @@
       }
       
       async function syncOfflineData() {
-        if (!db) return;
+        if (!db || !navigator.onLine) return;
+
         const transaction = db.transaction(['sales'], 'readonly');
         const store = transaction.objectStore('sales');
         const allRecordsReq = store.getAll();
@@ -389,20 +397,27 @@
                 const response = await fetch(HOOK_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(records)
+                    body: JSON.stringify(records) // Send all records at once
                 });
-                 const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+
+                const result = await response.json();
                 
                 if (result.status === 'success') {
+                  // Clear the object store ONLY after successful sync
                   const clearTransaction = db.transaction(['sales'], 'readwrite');
                   const clearStore = clearTransaction.objectStore('sales');
                   clearStore.clear();
+                  
                   syncStatusEl.textContent = ` | ✅ ซิงค์ข้อมูลเรียบร้อย!`;
                   showToast(`ซิงค์ข้อมูล ${records.length} รายการเรียบร้อย`);
                   setTimeout(() => updateSyncStatus(), 2000);
                   loadOfflineData();
                 } else {
-                  throw new Error('Server returned error status');
+                  throw new Error('Sync operation failed on the server');
                 }
             } catch (error) {
                 console.error('Sync failed:', error);
@@ -435,8 +450,8 @@
         
         getAllRequest.onsuccess = () => {
           const items = getAllRequest.result;
+          offlineItems.innerHTML = ''; // Clear previous items
           if (items.length > 0) {
-            offlineItems.innerHTML = '';
             items.forEach(item => {
               const itemEl = document.createElement('div');
               itemEl.className = 'offline-item';
@@ -453,15 +468,14 @@
       }
       
       viewHistoryBtn.addEventListener('click', () => {
-        if (offlineList.style.display === 'none') {
-          offlineList.style.display = 'block';
-          viewHistoryBtn.innerHTML = '<i class="fas fa-chevron-up"></i> ซ่อนประวัติออฟไลน์';
-        } else {
-          offlineList.style.display = 'none';
-          viewHistoryBtn.innerHTML = '<i class="fas fa-history"></i> ดูประวัติออฟไลน์';
-        }
+        const isHidden = offlineList.style.display === 'none';
+        offlineList.style.display = isHidden ? 'block' : 'none';
+        viewHistoryBtn.innerHTML = isHidden 
+            ? '<i class="fas fa-chevron-up"></i> ซ่อนประวัติออฟไลน์'
+            : '<i class="fas fa-history"></i> ดูประวัติออฟไลน์';
       });
       
+      // --- UI Helper Functions ---
       function showMessage(message, type) {
         msg.textContent = message;
         msg.className = 'msg-box ' + type;
@@ -483,7 +497,7 @@
 
       function resetForm() {
         form.reset();
-        dateInput.value = new Date().toISOString().substr(0, 10);
+        dateInput.value = getLocalDateString();
         calculateAll();
         resetUI();
       }
@@ -493,6 +507,7 @@
           submitBtn.innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล';
       }
 
+      // --- Tab Navigation ---
       const tabBtns = document.querySelectorAll('.tab-btn');
       const tabContents = document.querySelectorAll('.tab-content');
       tabBtns.forEach(btn => {
@@ -509,6 +524,7 @@
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
       });
 
+      // --- Material Calculator Logic ---
       const leafInput = document.getElementById('leafInput'), waterInput = document.getElementById('waterInput'), yieldInput = document.getElementById('yieldInput'), calculateButton = document.getElementById('calculateButton'), resetButton = document.getElementById('resetButton'), resultContainer = document.getElementById('resultContainer');
       const results = {
           groundLeaf: document.getElementById('resultGroundLeaf'), groundWater: document.getElementById('resultGroundWater'), groundYield: document.getElementById('resultGroundYield'),
@@ -522,8 +538,8 @@
 
           const ratios = {
               ground: { leafToWater: 20, waterToYield: 15 / 20 },
-              notGround1: { leafToWater: 15.38, waterToYield: 12 / 15.38 },
-              notGround2: { leafToWater: 15.87302, waterToYield: 12 / 15.87302 }
+              notGround1: { leafToWater: 15.38, waterToYield: 12 / 15.38 }, // 0.65
+              notGround2: { leafToWater: 15.873, waterToYield: 12 / 15.873 } // 0.63
           };
 
           let values = {};
@@ -541,15 +557,21 @@
               values.notGround2 = { yield: yieldDesired, water: yieldDesired / ratios.notGround2.waterToYield, leaf: (yieldDesired / ratios.notGround2.waterToYield) / ratios.notGround2.leafToWater };
           }
           
-          results.groundLeaf.textContent = values.ground.leaf.toFixed(2);
-          results.groundWater.textContent = values.ground.water.toFixed(2);
-          results.groundYield.textContent = values.ground.yield.toFixed(2);
-          results.notGroundLeaf1.textContent = values.notGround1.leaf.toFixed(2);
-          results.notGroundWater1.textContent = values.notGround1.water.toFixed(2);
-          results.notGroundYield1.textContent = values.notGround1.yield.toFixed(2);
-          results.notGroundLeaf2.textContent = values.notGround2.leaf.toFixed(2);
-          results.notGroundWater2.textContent = values.notGround2.water.toFixed(2);
-          results.notGroundYield2.textContent = values.notGround2.yield.toFixed(2);
+          Object.keys(values).forEach(key => {
+            values[key].leaf = values[key].leaf.toFixed(2);
+            values[key].water = values[key].water.toFixed(2);
+            values[key].yield = values[key].yield.toFixed(2);
+          });
+          
+          results.groundLeaf.textContent = values.ground.leaf;
+          results.groundWater.textContent = values.ground.water;
+          results.groundYield.textContent = values.ground.yield;
+          results.notGroundLeaf1.textContent = values.notGround1.leaf;
+          results.notGroundWater1.textContent = values.notGround1.water;
+          results.notGroundYield1.textContent = values.notGround1.yield;
+          results.notGroundLeaf2.textContent = values.notGround2.leaf;
+          results.notGroundWater2.textContent = values.notGround2.water;
+          results.notGroundYield2.textContent = values.notGround2.yield;
 
           resultContainer.style.display = 'block';
           showMessage('✅ คำนวณสำเร็จ!', 'success');
@@ -560,7 +582,6 @@
         resultContainer.style.display = 'none';
         showMessage('♻️ รีเซ็ตฟอร์มแล้ว', 'success');
       });
-
     });
   </script>
 </body>
