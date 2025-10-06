@@ -1,0 +1,105 @@
+{
+  "name": "SSKratomYMT - บันทึกยอดขายน้ำกระท่อม",
+  "short_name": "SSKratomYMT",
+  "description": "แอปพลิเคชันบันทึกยอดขายและคำนวณวัตถุดิบน้ำกระท่อม",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F1F8E9",
+  "theme_color": "#2E7D32",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "th",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "images/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "images/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "images/screenshots/screenshot1.png",
+      "sizes": "640x1136",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "images/screenshots/screenshot2.png",
+      "sizes": "1024x768",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "บันทึกยอดขาย",
+      "short_name": "บันทึก",
+      "description": "บันทึกข้อมูลการขายประจำวัน",
+      "url": "/#sales-tab",
+      "icons": [
+        {
+          "src": "images/icons/shortcut-sales.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "คำนวณวัตถุดิบ",
+      "short_name": "คำนวณ",
+      "description": "คำนวณวัตถุดิบผลิตน้ำกระท่อม",
+      "url": "/#material-tab",
+      "icons": [
+        {
+          "src": "images/icons/shortcut-calc.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
