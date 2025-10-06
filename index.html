@@ -83,6 +83,8 @@
     .offline-list { margin-top: 20px; max-height: 200px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px; }
     .offline-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; }
     .offline-item:last-child { border-bottom: none; }
+    .duplicate-warning { background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid var(--warning-color); color: var(--warning-color); padding: 12px; border-radius: 8px; margin-top: 15px; }
+    .duplicate-warning.hidden { display: none; }
   </style>
 </head>
 <body>
@@ -113,7 +115,7 @@
         <div class="form-card">
           <div class="card-header"><i class="fas fa-money-bill-wave"></i><h2>รายการค่าใช้จ่าย</h2></div>
           <div class="form-group"><label for="pipeFee"><i class="fas fa-tools"></i> ค่าท่อม</label><input type="number" id="pipeFee" min="0" value="0" /></div>
-          <div class="form-group"><label for="shareFee"><i class="fas fa-handshake"></i> ค่าแชร์</label><input type="number" id="shareFee" min="0" value=“0" /></div>
+          <div class="form-group"><label for="shareFee"><i class="fas fa-handshake"></i> ค่าแชร์</label><input type="number" id="shareFee" min="0" value="0" /></div>
           <div class="form-group"><label for="otherFee"><i class="fas fa-receipt"></i> ค่าใช้จ่ายอื่น</label><input type="number" id="otherFee" min="0" value="0" /></div>
           <div class="form-group"><label for="saveFee"><i class="fas fa-piggy-bank"></i> เก็บออมเงิน</label><input type="number" id="saveFee" min="0" value="500" /></div>
           <div class="output-box expense"><span>รายจ่าย:</span><strong id="expense">0</strong> บาท</div>
@@ -122,6 +124,19 @@
         <div class="form-card summary">
           <div class="card-header"><i class="fas fa-calculator"></i><h2>สรุปยอด</h2></div>
           <div class="output-box balance"><span>ยอดคงเหลือ:</span><strong id="balance">0</strong> บาท</div>
+        </div>
+
+        <!-- กล่องแจ้งเตือนข้อมูลซ้ำ -->
+        <div id="duplicateWarning" class="duplicate-warning hidden">
+          <i class="fas fa-exclamation-triangle"></i> <strong>พบข้อมูลซ้ำ!</strong> ข้อมูลสำหรับวันที่นี้มีอยู่แล้วในระบบ คุณต้องการบันทึกซ้ำหรือไม่?
+          <div style="margin-top: 10px;">
+            <button type="button" id="forceSaveBtn" class="action-btn" style="background-color: var(--warning-color); color: white;">
+              <i class="fas fa-save"></i> บันทึกซ้ำ
+            </button>
+            <button type="button" id="cancelSaveBtn" class="action-btn" style="background-color: #f5f5f5; color: var(--text-medium);">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+          </div>
         </div>
 
         <button type="submit" class="submit-btn" id="submitBtn"><i class="fas fa-save"></i> บันทึกข้อมูล</button>
@@ -200,12 +215,15 @@
 
       // --- IndexedDB for Offline Storage ---
       let db;
-      const dbRequest = indexedDB.open('salesDB', 2);
+      const dbRequest = indexedDB.open('salesDB', 3);
       
       dbRequest.onupgradeneeded = event => {
         db = event.target.result;
         if (!db.objectStoreNames.contains('sales')) {
           db.createObjectStore('sales', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('savedRecords')) {
+          db.createObjectStore('savedRecords', { keyPath: 'id', autoIncrement: true });
         }
       };
       
@@ -218,7 +236,6 @@
       dbRequest.onerror = event => console.error('DB Error:', event.target.errorCode);
       
       // --- App Logic ---
-      // ⬇️⬇️⬇️ **สำคัญ:** กรุณานำ Web App URL ที่ได้จาก Google Apps Script มาวางที่นี่ ⬇️⬇️⬇️
       const HOOK_URL = 'https://script.google.com/macros/s/AKfycbxcz209lJDCwls20sDnXMG8V2uP5rUowZ5JWCjG8JEhSfCCyAAWJBBv4sBUrnofuYJH/exec'; 
       const PRICE_PER_BOTTLE = 40;
 
@@ -230,6 +247,9 @@
       const viewHistoryBtn = document.getElementById('viewHistoryBtn');
       const offlineList = document.getElementById('offlineList');
       const offlineItems = document.getElementById('offlineItems');
+      const duplicateWarning = document.getElementById('duplicateWarning');
+      const forceSaveBtn = document.getElementById('forceSaveBtn');
+      const cancelSaveBtn = document.getElementById('cancelSaveBtn');
       const inputs = {
         sold: document.getElementById('sold'), pending: document.getElementById('pending'), cleared: document.getElementById('cleared'),
         pipeFee: document.getElementById('pipeFee'), shareFee: document.getElementById('shareFee'), otherFee: document.getElementById('otherFee'), saveFee: document.getElementById('saveFee'),
@@ -243,7 +263,7 @@
 
       // --- Calculation Functions ---
       const getNum = (el) => parseFloat(el.value) || 0;
-      const formatCurrency = (num) => num.toLocaleString('th-TH'); // ปรับเป็น th-TH
+      const formatCurrency = (num) => num.toLocaleString('th-TH');
 
       function calculateAll() {
         const soldVal = getNum(inputs.sold);
@@ -269,7 +289,82 @@
       Object.values(inputs).forEach(input => input.addEventListener('input', calculateAll));
       calculateAll();
 
-      // --- Form Submission with Confirmation ---
+      // --- ฟังก์ชันตรวจสอบข้อมูลซ้ำ ---
+      async function checkDuplicateData(payload) {
+        try {
+          // ตรวจสอบในฐานข้อมูลออฟไลน์
+          const offlineDuplicates = await checkOfflineDuplicates(payload);
+          if (offlineDuplicates.length > 0) {
+            return true;
+          }
+          
+          // ตรวจสอบในเซิร์ฟเวอร์ (ถ้าออนไลน์)
+          if (navigator.onLine) {
+            const serverDuplicates = await checkServerDuplicates(payload);
+            if (serverDuplicates) {
+              return true;
+            }
+          }
+          
+          return false;
+        } catch (error) {
+          console.error('Error checking duplicates:', error);
+          return false;
+        }
+      }
+      
+      function checkOfflineDuplicates(payload) {
+        return new Promise((resolve) => {
+          if (!db) {
+            resolve([]);
+            return;
+          }
+          
+          const transaction = db.transaction(['savedRecords'], 'readonly');
+          const store = transaction.objectStore('savedRecords');
+          const request = store.getAll();
+          
+          request.onsuccess = () => {
+            const records = request.result;
+            const duplicates = records.filter(record => 
+              record.date === payload.date && 
+              record.sold === payload.sold && 
+              record.pending === payload.pending && 
+              record.cleared === payload.cleared
+            );
+            resolve(duplicates);
+          };
+          
+          request.onerror = () => {
+            resolve([]);
+          };
+        });
+      }
+      
+      async function checkServerDuplicates(payload) {
+        try {
+          // ส่งคำขอไปยังเซิร์ฟเวอร์เพื่อตรวจสอบข้อมูลซ้ำ
+          const response = await fetch(HOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'checkDuplicate',
+              date: payload.date,
+              sold: payload.sold,
+              pending: payload.pending,
+              cleared: payload.cleared
+            })
+          });
+          
+          const result = await response.json();
+          return result.isDuplicate || false;
+        } catch (error) {
+          console.error('Error checking server duplicates:', error);
+          return false;
+        }
+      }
+      
+      // --- Form Submission with Duplicate Check ---
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -293,7 +388,6 @@
           balance: calcs.balance
         };
 
-        // --- ⭐ ส่วนที่เพิ่มเข้ามา: สร้างข้อความและแสดงกล่องโต้ตอบเพื่อยืนยัน ⭐ ---
         const confirmationMessage = `
           *** กรุณาตรวจสอบข้อมูลก่อนบันทึก ***
 
@@ -309,42 +403,101 @@
 
         if (!confirm(confirmationMessage)) {
             showMessage('การบันทึกถูกยกเลิก', 'warning');
-            return; // หยุดการทำงานถ้าผู้ใช้กดยกเลิก
+            return;
         }
-        // --- จบส่วนที่เพิ่มเข้ามา ---
 
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังตรวจสอบข้อมูล...';
 
-        if (navigator.onLine) {
-          try {
-            const response = await fetch(HOOK_URL, {
-                method: 'POST',
-                // ใช้ mode 'no-cors' อาจจำเป็นสำหรับ Apps Script web app พื้นฐาน
-                // แต่การตอบกลับจะไม่สามารถอ่านได้ ให้ใช้ text/plain ใน Apps Script แทน JSON
-                // ในที่นี้จะลองแบบปกติก่อน หากติด CORS ให้เปลี่ยน
-                // mode: 'no-cors', 
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Apps Script รับ text/plain ได้ดีกว่า
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json(); // รอรับการตอบกลับแบบ JSON
-            
-            if (result.status === 'success') {
-              showMessage('✅ บันทึกข้อมูลออนไลน์สำเร็จ!', 'success');
-              showToast('บันทึกข้อมูลสำเร็จแล้ว');
-              resetForm();
-            } else {
-              throw new Error(result.message || 'Server returned error status');
-            }
-          } catch (error) {
-             console.error('Fetch Error:', error);
-             showMessage('⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ บันทึกข้อมูลแบบออฟไลน์', 'loading');
-             saveDataOffline(payload);
-          }
+        // ตรวจสอบข้อมูลซ้ำ
+        const isDuplicate = await checkDuplicateData(payload);
+        
+        if (isDuplicate) {
+          // แสดงคำเตือนข้อมูลซ้ำ
+          duplicateWarning.classList.remove('hidden');
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล';
         } else {
-            showMessage('🔌 คุณกำลังออฟไลน์ บันทึกข้อมูลไว้ก่อน', 'loading');
-            saveDataOffline(payload);
+          // บันทึกข้อมูลปกติ
+          saveVerifiedData(payload);
         }
+      });
+      
+      // --- ฟังก์ชันบันทึกข้อมูลที่ตรวจสอบแล้ว ---
+      function saveVerifiedData(payload, forceSave = false) {
+        // บันทึกในฐานข้อมูลออฟไลน์
+        if (!forceSave) {
+          saveToOfflineRecords(payload);
+        }
+        
+        // ส่งไปยังเซิร์ฟเวอร์
+        if (navigator.onLine) {
+          sendToServer(payload);
+        } else {
+          saveDataOffline(payload);
+        }
+      }
+      
+      function saveToOfflineRecords(payload) {
+        if (!db) return;
+        
+        const transaction = db.transaction(['savedRecords'], 'readwrite');
+        const store = transaction.objectStore('savedRecords');
+        store.add(payload);
+      }
+      
+      async function sendToServer(payload) {
+        try {
+          const response = await fetch(HOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
+          
+          const result = await response.json();
+          
+          if (result.status === 'success') {
+            showMessage('✅ บันทึกข้อมูลออนไลน์สำเร็จ!', 'success');
+            showToast('บันทึกข้อมูลสำเร็จแล้ว');
+            resetForm();
+          } else {
+            throw new Error(result.message || 'Server returned error status');
+          }
+        } catch (error) {
+          console.error('Fetch Error:', error);
+          showMessage('⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ บันทึกข้อมูลแบบออฟไลน์', 'loading');
+          saveDataOffline(payload);
+        }
+      }
+      
+      // --- การจัดการการบันทึกซ้ำ ---
+      forceSaveBtn.addEventListener('click', () => {
+        const calcs = calculateAll();
+        const payload = {
+          date: dateInput.value,
+          sold: getNum(inputs.sold),
+          pending: getNum(inputs.pending),
+          cleared: getNum(inputs.cleared),
+          pipeFee: getNum(inputs.pipeFee),
+          shareFee: getNum(inputs.shareFee),
+          otherFee: getNum(inputs.otherFee),
+          saveFee: getNum(inputs.saveFee),
+          revenue: calcs.revenue,
+          expense: calcs.expense,
+          balance: calcs.balance
+        };
+        
+        duplicateWarning.classList.add('hidden');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
+        
+        // บันทึกข้อมูลโดยไม่สนใจข้อมูลซ้ำ
+        saveVerifiedData(payload, true);
+      });
+      
+      cancelSaveBtn.addEventListener('click', () => {
+        duplicateWarning.classList.add('hidden');
+        showMessage('การบันทึกถูกยกเลิก', 'warning');
       });
       
       function saveDataOffline(data) {
@@ -485,6 +638,7 @@
         dateInput.value = new Date().toISOString().substr(0, 10);
         calculateAll();
         resetUI();
+        duplicateWarning.classList.add('hidden');
       }
       
       function resetUI() {
@@ -562,5 +716,73 @@
 
     });
   </script>
+
+<script>
+  // ลงทะเบียน Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(function(registration) {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          
+          // ตรวจสอบการอัปเดต
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            console.log('ServiceWorker update found!');
+            
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // แจ้งผู้ใช้เกี่ยวกับการอัปเดตใหม่
+                if (confirm('มีเวอร์ชันใหม่ของแอปพร้อมใช้งาน! ต้องการอัปเดตตอนนี้หรือไม่?')) {
+                  newWorker.postMessage({type: 'SKIP_WAITING'});
+                  window.location.reload();
+                }
+              }
+            });
+          });
+        })
+        .catch(function(error) {
+          console.log('ServiceWorker registration failed: ', error);
+        });
+
+      // ตรวจสอบสถานะออนไลน์/ออฟไลน์
+      navigator.serviceWorker.addEventListener('message', event => {
+        if (event.data.type === 'NETWORK_STATUS') {
+          console.log('Network status:', event.data.isOnline ? 'Online' : 'Offline');
+        }
+      });
+    });
+
+    // ฟังก์ชันสำหรับเรียกซิงค์ข้อมูลจาก Service Worker
+    function triggerSync() {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SYNC_DATA'
+        });
+      }
+    }
+
+    // ฟังก์ชันสำหรับขอข้อมูลเวอร์ชัน
+    function getVersion() {
+      return new Promise((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = event => {
+          if (event.data.type === 'VERSION_INFO') {
+            resolve(event.data);
+          }
+        };
+        
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'GET_VERSION'
+          }, [channel.port2]);
+        } else {
+          resolve({version: 'unknown', cacheName: 'unknown'});
+        }
+      });
+    }
+  }
+</script>
+
 </body>
 </html>
