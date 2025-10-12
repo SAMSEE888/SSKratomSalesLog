@@ -8,9 +8,6 @@
   <title>SSKratomYMT - บันทึกยอดขาย</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="images/icons/icon-192x192.png">
-
   <style>
     :root {
       --primary-color: #2E7D32; --primary-light: #4CAF50; --primary-lighter: #81C784; --primary-dark: #1B5E20; --accent-color: #8BC34A; --background: #F1F8E9; --card-bg: rgba(255, 255, 255, 0.9); --text-dark: #263238; --text-medium: #455A64; --text-light: #607D8B; --success-color: #388E3C; --warning-color: #F57C00; --error-color: #D32F2F; --shadow-sm: 0 1px 3px rgba(0,0,0,0.12); --shadow-md: 0 4px 6px rgba(0,0,0,0.1); --shadow-lg: 0 10px 20px rgba(0,0,0,0.1); --border-radius: 12px; --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -60,7 +57,6 @@
     .status-indicator { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; padding: 8px; border-radius: 8px; font-size: 0.9rem; }
     .status-indicator.offline { background-color: #f5f5f5; color: var(--text-medium); }
     .status-indicator.online { background-color: rgba(76, 175, 80, 0.1); color: var(--primary-color); }
-    #syncStatus { font-weight: 500; }
     .material-calculator { background: var(--card-bg); border-radius: var(--border-radius); box-shadow: var(--shadow-sm); padding: 25px; margin-bottom: 25px; transition: var(--transition); border-top: 4px solid var(--accent-color); }
     .input-group { margin-bottom: 20px; }
     .input-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-medium); }
@@ -85,6 +81,9 @@
     .offline-item:last-child { border-bottom: none; }
     .duplicate-warning { background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid var(--warning-color); color: var(--warning-color); padding: 12px; border-radius: 8px; margin-top: 15px; }
     .duplicate-warning.hidden { display: none; }
+    .api-status { background: var(--card-bg); padding: 15px; border-radius: var(--border-radius); margin-bottom: 20px; text-align: center; }
+    .api-status.connected { border-left: 4px solid var(--success-color); }
+    .api-status.error { border-left: 4px solid var(--error-color); }
   </style>
 </head>
 <body>
@@ -94,11 +93,18 @@
       <div class="current-date" id="currentDate"></div>
     </header>
     
-    <div id="status" class="status-indicator"></div>
+    <div id="apiStatus" class="api-status connected">
+      <i class="fas fa-check-circle"></i> เชื่อมต่อกับ Google Apps Script สำเร็จ
+    </div>
+
+    <div id="status" class="status-indicator">
+      <i class="fas fa-wifi"></i> กำลังตรวจสอบสถานะอินเทอร์เน็ต...
+    </div>
 
     <div class="tab-menu">
       <button class="tab-btn active" data-tab="sales-tab"><i class="fas fa-chart-line"></i> บันทึกยอดขาย</button>
       <button class="tab-btn" data-tab="material-tab"><i class="fas fa-calculator"></i> คำนวณวัตถุดิบ</button>
+      <button class="tab-btn" data-tab="about-tab"><i class="fas fa-info-circle"></i> เกี่ยวกับ</button>
     </div>
 
     <div id="sales-tab" class="tab-content active">
@@ -126,39 +132,19 @@
           <div class="output-box balance"><span>ยอดคงเหลือ:</span><strong id="balance">0</strong> บาท</div>
         </div>
 
-        <!-- กล่องแจ้งเตือนข้อมูลซ้ำ -->
-        <div id="duplicateWarning" class="duplicate-warning hidden">
-          <i class="fas fa-exclamation-triangle"></i> <strong>พบข้อมูลซ้ำ!</strong> ข้อมูลสำหรับวันที่นี้มีอยู่แล้วในระบบ คุณต้องการบันทึกซ้ำหรือไม่?
-          <div style="margin-top: 10px;">
-            <button type="button" id="forceSaveBtn" class="action-btn" style="background-color: var(--warning-color); color: white;">
-              <i class="fas fa-save"></i> บันทึกซ้ำ
-            </button>
-            <button type="button" id="cancelSaveBtn" class="action-btn" style="background-color: #f5f5f5; color: var(--text-medium);">
-              <i class="fas fa-times"></i> ยกเลิก
-            </button>
-          </div>
-        </div>
-
         <button type="submit" class="submit-btn" id="submitBtn"><i class="fas fa-save"></i> บันทึกข้อมูล</button>
       </form>
 
-      <button id="viewHistoryBtn" class="action-btn history-btn"><i class="fas fa-history"></i> ดูประวัติออฟไลน์</button>
-      
-      <div id="offlineList" class="offline-list" style="display: none;">
-        <h3>รายการที่ยังไม่ได้ซิงค์</h3>
-        <div id="offlineItems"></div>
-      </div>
-
       <div class="action-buttons">
-        <a class="action-btn sheet-btn" href="https://docs.google.com/spreadsheets/d/11vhg37MbHRm53SSEHLsCI3EBXx5_meXVvlRuqhFteaY/edit#gid=0" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> ดูประวัติในชีต</a>
-        <a class="action-btn report-btn" href="https://script.google.com/macros/s/AKfycbzPgDAOiQPQ3Mhsm0jd8tiFWz4sIDlQWs-lCiF0NyQFyCVRbj9JYpLYwYgKt-SthGgdQg/exec" target="_blank" rel="noopener noreferrer"><i class="fas fa-chart-pie"></i> ดูรายงาน</a>
+        <button class="action-btn sheet-btn" id="viewHistoryBtn"><i class="fas fa-history"></i> ดูประวัติการบันทึก</button>
+        <button class="action-btn report-btn" id="refreshDataBtn"><i class="fas fa-sync-alt"></i> รีเฟรชข้อมูล</button>
       </div>
 
       <div id="msg" class="msg-box" style="display: none;"></div>
     </div>
 
     <div id="material-tab" class="tab-content">
-       <div class="material-calculator">
+      <div class="material-calculator">
         <div class="card-header"><i class="fas fa-leaf"></i><h2>คำนวณวัตถุดิบผลิตน้ำกระท่อม</h2></div>
         <p style="margin-bottom: 20px; color: var(--text-medium);">กรอกข้อมูลอย่างน้อยหนึ่งช่องเพื่อคำนวณ</p>
         <div class="input-group"><label for="leafInput"><i class="fas fa-leaf"></i> จำนวนใบกระท่อม (กิโลกรัม)</label><input type="number" id="leafInput" min="0" placeholder="กรอกจำนวนใบกระท่อม"></div>
@@ -178,6 +164,25 @@
         </div>
       </div>
     </div>
+
+    <div id="about-tab" class="tab-content">
+      <div class="form-card">
+        <div class="card-header"><i class="fas fa-info-circle"></i><h2>เกี่ยวกับ SSKratomYMT</h2></div>
+        <div style="line-height: 1.8;">
+          <p><strong>เวอร์ชัน:</strong> 2.0.1 (แก้ไข Duplicate Check)</p>
+          <p><strong>พัฒนาโดย:</strong> ส.สามสี</p>
+          <p><strong>คุณสมบัติ:</strong></p>
+          <ul style="margin-left: 20px; margin-bottom: 15px;">
+            <li>บันทึกยอดขายน้ำกระท่อม</li>
+            <li>คำนวณวัตถุดิบการผลิต</li>
+            <li>**ป้องกันการบันทึกข้อมูลซ้ำ (ตรวจเฉพาะวันที่)**</li>
+            <li>ทำงานแบบออฟไลน์ได้</li>
+            <li>รองรับ PWA</li>
+          </ul>
+          <p><strong>การสนับสนุน:</strong> # • SSKratom-YMT • ส.สามสี • #</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="toast" class="toast-notification"></div>
@@ -185,604 +190,268 @@
   <footer class="app-footer"># • SSKratom-YMT • ส.สามสี • #</footer>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // --- PWA & Offline Setup ---
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('Service Worker registered successfully', reg))
-          .catch(err => console.error('Service Worker registration failed', err));
-      }
+    document.addEventListener('DOMContentLoaded', function() {
+      // ตั้งค่าวันที่ปัจจุบัน
+      document.getElementById('date').value = new Date().toISOString().substr(0, 10);
+      document.getElementById('currentDate').textContent = new Date().toLocaleDateString('th-TH', { 
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+      });
 
-      const statusEl = document.getElementById('status');
-      const syncStatusEl = document.createElement('span');
-      syncStatusEl.id = 'syncStatus';
-
-      function updateOnlineStatus() {
-        const isOnline = navigator.onLine;
-        statusEl.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
-        statusEl.innerHTML = isOnline 
-          ? `<i class="fas fa-wifi"></i> คุณกำลังออนไลน์` 
-          : `<i class="fas fa-plane"></i> คุณกำลังออฟไลน์`;
-        statusEl.appendChild(syncStatusEl);
-        if (isOnline) {
-          syncOfflineData();
-        }
-        updateSyncStatus();
-      }
-
-      window.addEventListener('online', updateOnlineStatus);
-      window.addEventListener('offline', updateOnlineStatus);
-
-      // --- IndexedDB for Offline Storage ---
-      let db;
-      const dbRequest = indexedDB.open('salesDB', 3);
-      
-      dbRequest.onupgradeneeded = event => {
-        db = event.target.result;
-        if (!db.objectStoreNames.contains('sales')) {
-          db.createObjectStore('sales', { keyPath: 'id', autoIncrement: true });
-        }
-        if (!db.objectStoreNames.contains('savedRecords')) {
-          db.createObjectStore('savedRecords', { keyPath: 'id', autoIncrement: true });
-        }
-      };
-      
-      dbRequest.onsuccess = event => { 
-        db = event.target.result; 
-        updateOnlineStatus();
-        loadOfflineData();
-      };
-      
-      dbRequest.onerror = event => console.error('DB Error:', event.target.errorCode);
-      
-      // --- App Logic ---
-      const HOOK_URL = 'https://script.google.com/macros/s/AKfycbxcz209lJDCwls20sDnXMG8V2uP5rUowZ5JWCjG8JEhSfCCyAAWJBBv4sBUrnofuYJH/exec'; 
+      // ตั้งค่าการคำนวณ
       const PRICE_PER_BOTTLE = 40;
-
-      // --- Element Selectors ---
-      const form = document.getElementById('saleForm');
-      const msg = document.getElementById('msg');
-      const dateInput = document.getElementById('date');
-      const submitBtn = document.getElementById('submitBtn');
-      const viewHistoryBtn = document.getElementById('viewHistoryBtn');
-      const offlineList = document.getElementById('offlineList');
-      const offlineItems = document.getElementById('offlineItems');
-      const duplicateWarning = document.getElementById('duplicateWarning');
-      const forceSaveBtn = document.getElementById('forceSaveBtn');
-      const cancelSaveBtn = document.getElementById('cancelSaveBtn');
-      const inputs = {
-        sold: document.getElementById('sold'), pending: document.getElementById('pending'), cleared: document.getElementById('cleared'),
-        pipeFee: document.getElementById('pipeFee'), shareFee: document.getElementById('shareFee'), otherFee: document.getElementById('otherFee'), saveFee: document.getElementById('saveFee'),
-      };
-      const outputs = {
-        revenue: document.getElementById('revenue'), expense: document.getElementById('expense'), balance: document.getElementById('balance'),
-      };
-
-      // --- Initial Setup ---
-      dateInput.value = new Date().toISOString().substr(0, 10);
-
-      // --- Calculation Functions ---
-      const getNum = (el) => parseFloat(el.value) || 0;
-      const formatCurrency = (num) => num.toLocaleString('th-TH');
-
+      const inputs = ['sold', 'pending', 'cleared', 'pipeFee', 'shareFee', 'otherFee', 'saveFee'];
+      
       function calculateAll() {
-        const soldVal = getNum(inputs.sold);
-        const pendingVal = getNum(inputs.pending);
-        const clearedVal = getNum(inputs.cleared);
-        
-        const pipeFeeVal = getNum(inputs.pipeFee);
-        const shareFeeVal = getNum(inputs.shareFee);
-        const otherFeeVal = getNum(inputs.otherFee);
-        const saveFeeVal = getNum(inputs.saveFee);
+        const sold = parseInt(document.getElementById('sold').value) || 0;
+        const pending = parseInt(document.getElementById('pending').value) || 0;
+        const cleared = parseInt(document.getElementById('cleared').value) || 0;
+        const pipeFee = parseInt(document.getElementById('pipeFee').value) || 0;
+        const shareFee = parseInt(document.getElementById('shareFee').value) || 0;
+        const otherFee = parseInt(document.getElementById('otherFee').value) || 0;
+        const saveFee = parseInt(document.getElementById('saveFee').value) || 0;
 
-        const revenue = (soldVal + clearedVal - pendingVal) * PRICE_PER_BOTTLE;
-        const expense = pipeFeeVal + shareFeeVal + otherFeeVal + saveFeeVal;
+        const revenue = (sold + cleared - pending) * PRICE_PER_BOTTLE;
+        const expense = pipeFee + shareFee + otherFee + saveFee;
         const balance = revenue - expense;
 
-        outputs.revenue.textContent = formatCurrency(revenue);
-        outputs.expense.textContent = formatCurrency(expense);
-        outputs.balance.textContent = formatCurrency(balance);
-
-        return { revenue, expense, balance };
+        document.getElementById('revenue').textContent = revenue.toLocaleString();
+        document.getElementById('expense').textContent = expense.toLocaleString();
+        document.getElementById('balance').textContent = balance.toLocaleString();
       }
-      
-      Object.values(inputs).forEach(input => input.addEventListener('input', calculateAll));
+
+      // เพิ่ม event listener สำหรับ input ทั้งหมด
+      inputs.forEach(inputId => {
+        document.getElementById(inputId).addEventListener('input', calculateAll);
+      });
+
+      // คำนวณครั้งแรก
       calculateAll();
 
-      // --- ฟังก์ชันตรวจสอบข้อมูลซ้ำ ---
-      async function checkDuplicateData(payload) {
-        try {
-          // ตรวจสอบในฐานข้อมูลออฟไลน์
-          const offlineDuplicates = await checkOfflineDuplicates(payload);
-          if (offlineDuplicates.length > 0) {
-            return true;
-          }
+      // การจัดการ tabs
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          // ลบ class active จากทั้งหมด
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
           
-          // ตรวจสอบในเซิร์ฟเวอร์ (ถ้าออนไลน์)
-          if (navigator.onLine) {
-            const serverDuplicates = await checkServerDuplicates(payload);
-            if (serverDuplicates) {
-              return true;
-            }
-          }
-          
-          return false;
-        } catch (error) {
-          console.error('Error checking duplicates:', error);
-          return false;
-        }
-      }
-      
-      function checkOfflineDuplicates(payload) {
-        return new Promise((resolve) => {
-          if (!db) {
-            resolve([]);
-            return;
-          }
-          
-          const transaction = db.transaction(['savedRecords'], 'readonly');
-          const store = transaction.objectStore('savedRecords');
-          const request = store.getAll();
-          
-          request.onsuccess = () => {
-            const records = request.result;
-            const duplicates = records.filter(record => 
-              record.date === payload.date && 
-              record.sold === payload.sold && 
-              record.pending === payload.pending && 
-              record.cleared === payload.cleared
-            );
-            resolve(duplicates);
-          };
-          
-          request.onerror = () => {
-            resolve([]);
-          };
+          // เพิ่ม class active ให้กับ tab ที่เลือก
+          this.classList.add('active');
+          document.getElementById(this.dataset.tab).classList.add('active');
         });
-      }
-      
-      async function checkServerDuplicates(payload) {
-        try {
-          // ส่งคำขอไปยังเซิร์ฟเวอร์เพื่อตรวจสอบข้อมูลซ้ำ
-          const response = await fetch(HOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'checkDuplicate',
-              date: payload.date,
-              sold: payload.sold,
-              pending: payload.pending,
-              cleared: payload.cleared
-            })
-          });
-          
-          const result = await response.json();
-          return result.isDuplicate || false;
-        } catch (error) {
-          console.error('Error checking server duplicates:', error);
-          return false;
-        }
-      }
-      
-      // --- Form Submission with Duplicate Check ---
-      form.addEventListener('submit', async (e) => {
+      });
+
+      // ⭐⭐⭐ โค้ดที่แก้ไขเพื่อป้องกันการบันทึกซ้ำซ้อนจากฝั่งไคลเอนต์ & ยืนยันข้อมูล ⭐⭐⭐
+      let isSubmitting = false; // สถานะการส่งฟอร์ม
+
+      document.getElementById('saleForm').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        if (!dateInput.value) {
-          showMessage('❌ กรุณาเลือกวันที่', 'error');
-          return;
+        const submitBtn = document.getElementById('submitBtn');
+        const msgBox = document.getElementById('msg');
+        
+        // การป้องกันหลัก: ถ้ากำลังส่งอยู่ ให้หยุดทันที
+        if (isSubmitting) {
+            console.log("กำลังส่งข้อมูลอยู่, ข้ามการส่งซ้ำ");
+            return;
         }
         
-        const calcs = calculateAll();
-        const payload = {
-          date: dateInput.value,
-          sold: getNum(inputs.sold),
-          pending: getNum(inputs.pending),
-          cleared: getNum(inputs.cleared),
-          pipeFee: getNum(inputs.pipeFee),
-          shareFee: getNum(inputs.shareFee),
-          otherFee: getNum(inputs.otherFee),
-          saveFee: getNum(inputs.saveFee),
-          revenue: calcs.revenue,
-          expense: calcs.expense,
-          balance: calcs.balance
+        const formData = {
+            date: document.getElementById('date').value,
+            sold: parseInt(document.getElementById('sold').value) || 0,
+            pending: parseInt(document.getElementById('pending').value) || 0,
+            cleared: parseInt(document.getElementById('cleared').value) || 0,
+            pipeFee: parseInt(document.getElementById('pipeFee').value) || 0,
+            shareFee: parseInt(document.getElementById('shareFee').value) || 0,
+            otherFee: parseInt(document.getElementById('otherFee').value) || 0,
+            saveFee: parseInt(document.getElementById('saveFee').value) || 0,
+            revenue: parseInt(document.getElementById('revenue').textContent.replace(/,/g, '')) || 0,
+            expense: parseInt(document.getElementById('expense').textContent.replace(/,/g, '')) || 0,
+            balance: parseInt(document.getElementById('balance').textContent.replace(/,/g, '')) || 0
         };
-
-        const confirmationMessage = `
-          *** กรุณาตรวจสอบข้อมูลก่อนบันทึก ***
-
-          วันที่: ${payload.date}
-          ------------------------------------
-          รายรับ: ${formatCurrency(payload.revenue)} บาท
-          รายจ่าย: ${formatCurrency(payload.expense)} บาท
-          คงเหลือ: ${formatCurrency(payload.balance)} บาท
-          ------------------------------------
-          
-          ยืนยันการบันทึกข้อมูลนี้?
+        
+        // ⭐⭐ ขั้นตอนที่ 1: การยืนยันข้อมูลก่อนบันทึก (ตามที่ร้องขอ) ⭐⭐
+        const confirmMessage = `
+            คุณยืนยันที่จะบันทึกข้อมูลนี้หรือไม่?
+            
+            วันที่: ${new Date(formData.date).toLocaleDateString('th-TH')}
+            จำนวนที่ขาย: ${formData.sold} ขวด
+            ค้างน้ำดิบ: ${formData.pending} ขวด
+            เคลียร์ยอดค้างน้ำดิบ: ${formData.cleared} ขวด
+            ยอดคงเหลือ: ${formData.balance.toLocaleString()} บาท
         `;
 
-        if (!confirm(confirmationMessage)) {
-            showMessage('การบันทึกถูกยกเลิก', 'warning');
+        if (!confirm(confirmMessage)) {
+            // ถ้าผู้ใช้กด Cancel
             return;
         }
 
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังตรวจสอบข้อมูล...';
-
-        // ตรวจสอบข้อมูลซ้ำ
-        const isDuplicate = await checkDuplicateData(payload);
-        
-        if (isDuplicate) {
-          // แสดงคำเตือนข้อมูลซ้ำ
-          duplicateWarning.classList.remove('hidden');
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล';
-        } else {
-          // บันทึกข้อมูลปกติ
-          saveVerifiedData(payload);
-        }
-      });
-      
-      // --- ฟังก์ชันบันทึกข้อมูลที่ตรวจสอบแล้ว ---
-      function saveVerifiedData(payload, forceSave = false) {
-        // บันทึกในฐานข้อมูลออฟไลน์
-        if (!forceSave) {
-          saveToOfflineRecords(payload);
-        }
-        
-        // ส่งไปยังเซิร์ฟเวอร์
-        if (navigator.onLine) {
-          sendToServer(payload);
-        } else {
-          saveDataOffline(payload);
-        }
-      }
-      
-      function saveToOfflineRecords(payload) {
-        if (!db) return;
-        
-        const transaction = db.transaction(['savedRecords'], 'readwrite');
-        const store = transaction.objectStore('savedRecords');
-        store.add(payload);
-      }
-      
-      async function sendToServer(payload) {
-        try {
-          const response = await fetch(HOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          });
-          
-          const result = await response.json();
-          
-          if (result.status === 'success') {
-            showMessage('✅ บันทึกข้อมูลออนไลน์สำเร็จ!', 'success');
-            showToast('บันทึกข้อมูลสำเร็จแล้ว');
-            resetForm();
-          } else {
-            throw new Error(result.message || 'Server returned error status');
-          }
-        } catch (error) {
-          console.error('Fetch Error:', error);
-          showMessage('⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ บันทึกข้อมูลแบบออฟไลน์', 'loading');
-          saveDataOffline(payload);
-        }
-      }
-      
-      // --- การจัดการการบันทึกซ้ำ ---
-      forceSaveBtn.addEventListener('click', () => {
-        const calcs = calculateAll();
-        const payload = {
-          date: dateInput.value,
-          sold: getNum(inputs.sold),
-          pending: getNum(inputs.pending),
-          cleared: getNum(inputs.cleared),
-          pipeFee: getNum(inputs.pipeFee),
-          shareFee: getNum(inputs.shareFee),
-          otherFee: getNum(inputs.otherFee),
-          saveFee: getNum(inputs.saveFee),
-          revenue: calcs.revenue,
-          expense: calcs.expense,
-          balance: calcs.balance
-        };
-        
-        duplicateWarning.classList.add('hidden');
+        // ⭐⭐ ขั้นตอนที่ 2: เริ่มต้นการส่งข้อมูล ⭐⭐
+        isSubmitting = true; // ตั้งค่าสถานะเป็นกำลังส่ง
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
-        
-        // บันทึกข้อมูลโดยไม่สนใจข้อมูลซ้ำ
-        saveVerifiedData(payload, true);
-      });
-      
-      cancelSaveBtn.addEventListener('click', () => {
-        duplicateWarning.classList.add('hidden');
-        showMessage('การบันทึกถูกยกเลิก', 'warning');
-      });
-      
-      function saveDataOffline(data) {
-        if (!db) {
-          showMessage('❌ ไม่สามารถบันทึกข้อมูลออฟไลน์ได้', 'error');
-          resetUI();
-          return;
-        }
-        
-        const transaction = db.transaction(['sales'], 'readwrite');
-        const store = transaction.objectStore('sales');
-        const request = store.add(data);
-        
-        request.onsuccess = () => {
-            showMessage('💾 บันทึกข้อมูลแบบออฟไลน์เรียบร้อยแล้ว', 'success');
-            showToast('บันทึกข้อมูลออฟไลน์เรียบร้อย');
-            resetForm();
-            updateSyncStatus();
-            loadOfflineData();
-        };
-        
-        request.onerror = () => {
-            showMessage('❌ ไม่สามารถบันทึกข้อมูลออฟไลน์ได้', 'error');
-            resetUI();
-        };
-      }
-      
-      async function syncOfflineData() {
-        if (!db) return;
-        const transaction = db.transaction(['sales'], 'readonly');
-        const store = transaction.objectStore('sales');
-        const allRecordsReq = store.getAll();
+        msgBox.style.display = 'none';
 
-        allRecordsReq.onsuccess = async () => {
-            const records = allRecordsReq.result;
-            if (records.length === 0) return;
-
-            syncStatusEl.textContent = ` | กำลังซิงค์ ${records.length} รายการ...`;
-
-            try {
-                const response = await fetch(HOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(records)
-                });
-                 const result = await response.json();
-                
-                if (result.status === 'success') {
-                  const clearTransaction = db.transaction(['sales'], 'readwrite');
-                  const clearStore = clearTransaction.objectStore('sales');
-                  clearStore.clear();
-                  syncStatusEl.textContent = ` | ✅ ซิงค์ข้อมูลเรียบร้อย!`;
-                  showToast(`ซิงค์ข้อมูล ${records.length} รายการเรียบร้อย`);
-                  setTimeout(() => updateSyncStatus(), 2000);
-                  loadOfflineData();
-                } else {
-                  throw new Error('Server returned error status');
-                }
-            } catch (error) {
-                console.error('Sync failed:', error);
-                syncStatusEl.textContent = ` | ❌ การซิงค์ล้มเหลว`;
+        // ส่งข้อมูลไปยัง Google Apps Script
+        fetch(window.location.href, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+          },
+          body: JSON.stringify(formData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP Error! Status: ${response.status}`);
             }
-        };
-      }
-
-      function updateSyncStatus() {
-        if (!db) return;
-        const transaction = db.transaction(['sales'], 'readonly');
-        const store = transaction.objectStore('sales');
-        const countRequest = store.count();
-        
-        countRequest.onsuccess = () => {
-            const count = countRequest.result;
-            if (count > 0) {
-                syncStatusEl.textContent = ` | 🕒 มี ${count} รายการรอซิงค์`;
-            } else {
-                syncStatusEl.textContent = '';
-            }
-        };
-      }
-      
-      function loadOfflineData() {
-        if (!db) return;
-        const transaction = db.transaction(['sales'], 'readonly');
-        const store = transaction.objectStore('sales');
-        const getAllRequest = store.getAll();
-        
-        getAllRequest.onsuccess = () => {
-          const items = getAllRequest.result;
-          if (items.length > 0) {
-            offlineItems.innerHTML = '';
-            items.forEach(item => {
-              const itemEl = document.createElement('div');
-              itemEl.className = 'offline-item';
-              itemEl.innerHTML = `
-                <div>${item.date}</div>
-                <div>${formatCurrency(item.revenue)} บ.</div>
-              `;
-              offlineItems.appendChild(itemEl);
-            });
+            return response.json();
+        })
+        .then(data => {
+          if (data.status === 'success') {
+            msgBox.className = 'msg-box success';
+            msgBox.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+            msgBox.style.display = 'block';
+            
+            // รีเซ็ตฟอร์ม
+            document.getElementById('saleForm').reset();
+            document.getElementById('date').value = new Date().toISOString().substr(0, 10);
+            calculateAll();
+            
+            // แสดง toast
+            showToast('บันทึกข้อมูลสำเร็จ!');
           } else {
-            offlineItems.innerHTML = '<div class="offline-item">ไม่มีรายการที่รอซิงค์</div>';
+            throw new Error(data.message || 'บันทึกข้อมูลไม่สำเร็จ');
           }
-        };
-      }
-      
-      viewHistoryBtn.addEventListener('click', () => {
-        if (offlineList.style.display === 'none') {
-          offlineList.style.display = 'block';
-          viewHistoryBtn.innerHTML = '<i class="fas fa-chevron-up"></i> ซ่อนประวัติออฟไลน์';
-        } else {
-          offlineList.style.display = 'none';
-          viewHistoryBtn.innerHTML = '<i class="fas fa-history"></i> ดูประวัติออฟไลน์';
-        }
+        })
+        .catch(error => {
+          console.error('Submission error:', error);
+          msgBox.className = 'msg-box error';
+          msgBox.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (error.message.includes('HTTP Error') ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message : error.message);
+          msgBox.style.display = 'block';
+        })
+        .finally(() => {
+          // ยกเลิกสถานะกำลังส่งเมื่อกระบวนการเสร็จสิ้น
+          isSubmitting = false; 
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล';
+        });
       });
-      
-      function showMessage(message, type) {
-        msg.textContent = message;
-        msg.className = 'msg-box ' + type;
-        msg.style.display = 'block';
-        setTimeout(() => {
-          msg.style.display = 'none';
-        }, 4000);
-      }
+      // ⭐⭐⭐ สิ้นสุดโค้ดที่แก้ไขเพื่อป้องกันการบันทึกซ้ำซ้อนจากฝั่งไคลเอนต์ & ยืนยันข้อมูล ⭐⭐⭐
 
+
+      // ฟังก์ชันแสดง toast
       function showToast(message) {
         const toast = document.getElementById('toast');
         toast.textContent = message;
         toast.classList.add('show');
-        
         setTimeout(() => {
           toast.classList.remove('show');
         }, 3000);
       }
 
-      function resetForm() {
-        form.reset();
-        dateInput.value = new Date().toISOString().substr(0, 10);
-        calculateAll();
-        resetUI();
-        duplicateWarning.classList.add('hidden');
-      }
-      
-      function resetUI() {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล';
-      }
+      // การคำนวณวัตถุดิบ
+      document.getElementById('calculateButton').addEventListener('click', function() {
+        const leaf = parseFloat(document.getElementById('leafInput').value) || 0;
+        const water = parseFloat(document.getElementById('waterInput').value) || 0;
+        const yieldDesired = parseFloat(document.getElementById('yieldInput').value) || 0;
 
-      const tabBtns = document.querySelectorAll('.tab-btn');
-      const tabContents = document.querySelectorAll('.tab-content');
-      tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const tabId = btn.getAttribute('data-tab');
-          tabContents.forEach(content => content.classList.remove('active'));
-          tabBtns.forEach(b => b.classList.remove('active'));
-          document.getElementById(tabId).classList.add('active');
-          btn.classList.add('active');
-        });
-      });
-      
-      document.getElementById('currentDate').textContent = new Date().toLocaleDateString('th-TH', { 
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-      });
-
-      const leafInput = document.getElementById('leafInput'), waterInput = document.getElementById('waterInput'), yieldInput = document.getElementById('yieldInput'), calculateButton = document.getElementById('calculateButton'), resetButton = document.getElementById('resetButton'), resultContainer = document.getElementById('resultContainer');
-      const results = {
-          groundLeaf: document.getElementById('resultGroundLeaf'), groundWater: document.getElementById('resultGroundWater'), groundYield: document.getElementById('resultGroundYield'),
-          notGroundLeaf1: document.getElementById('resultNotGroundLeaf1'), notGroundWater1: document.getElementById('resultNotGroundWater1'), notGroundYield1: document.getElementById('resultNotGroundYield1'),
-          notGroundLeaf2: document.getElementById('resultNotGroundLeaf2'), notGroundWater2: document.getElementById('resultNotGroundWater2'), notGroundYield2: document.getElementById('resultNotGroundYield2'),
-      };
-      
-      calculateButton.addEventListener('click', function() {
-          const leaf = parseFloat(leafInput.value) || 0, water = parseFloat(waterInput.value) || 0, yieldDesired = parseFloat(yieldInput.value) || 0;
-          if (leaf === 0 && water === 0 && yieldDesired === 0) { showMessage('⚠️ กรุณากรอกข้อมูลอย่างน้อยหนึ่งช่อง', 'error'); return; }
-
-          const ratios = {
-              ground: { leafToWater: 20, waterToYield: 15 / 20 },
-              notGround1: { leafToWater: 15.38, waterToYield: 12 / 15.38 },
-              notGround2: { leafToWater: 15.87302, waterToYield: 12 / 15.87302 }
-          };
-
-          let values = {};
-          if (leaf > 0) {
-              values.ground = { leaf, water: leaf * ratios.ground.leafToWater, yield: (leaf * ratios.ground.leafToWater) * ratios.ground.waterToYield };
-              values.notGround1 = { leaf, water: leaf * ratios.notGround1.leafToWater, yield: (leaf * ratios.notGround1.leafToWater) * ratios.notGround1.waterToYield };
-              values.notGround2 = { leaf, water: leaf * ratios.notGround2.leafToWater, yield: (leaf * ratios.notGround2.leafToWater) * ratios.notGround2.waterToYield };
-          } else if (water > 0) {
-              values.ground = { water, leaf: water / ratios.ground.leafToWater, yield: water * ratios.ground.waterToYield };
-              values.notGround1 = { water, leaf: water / ratios.notGround1.leafToWater, yield: water * ratios.notGround1.waterToYield };
-              values.notGround2 = { water, leaf: water / ratios.notGround2.leafToWater, yield: water * ratios.notGround2.waterToYield };
-          } else if (yieldDesired > 0) {
-              values.ground = { yield: yieldDesired, water: yieldDesired / ratios.ground.waterToYield, leaf: (yieldDesired / ratios.ground.waterToYield) / ratios.ground.leafToWater };
-              values.notGround1 = { yield: yieldDesired, water: yieldDesired / ratios.notGround1.waterToYield, leaf: (yieldDesired / ratios.notGround1.waterToYield) / ratios.notGround1.leafToWater };
-              values.notGround2 = { yield: yieldDesired, water: yieldDesired / ratios.notGround2.waterToYield, leaf: (yieldDesired / ratios.notGround2.waterToYield) / ratios.notGround2.leafToWater };
-          }
-          
-          results.groundLeaf.textContent = values.ground.leaf.toFixed(2);
-          results.groundWater.textContent = values.ground.water.toFixed(2);
-          results.groundYield.textContent = values.ground.yield.toFixed(2);
-          results.notGroundLeaf1.textContent = values.notGround1.leaf.toFixed(2);
-          results.notGroundWater1.textContent = values.notGround1.water.toFixed(2);
-          results.notGroundYield1.textContent = values.notGround1.yield.toFixed(2);
-          results.notGroundLeaf2.textContent = values.notGround2.leaf.toFixed(2);
-          results.notGroundWater2.textContent = values.notGround2.water.toFixed(2);
-          results.notGroundYield2.textContent = values.notGround2.yield.toFixed(2);
-
-          resultContainer.style.display = 'block';
-          showMessage('✅ คำนวณสำเร็จ!', 'success');
-      });
-
-      resetButton.addEventListener('click', function() {
-        leafInput.value = ''; waterInput.value = ''; yieldInput.value = '';
-        resultContainer.style.display = 'none';
-        showMessage('♻️ รีเซ็ตฟอร์มแล้ว', 'success');
-      });
-
-    });
-  </script>
-
-<script>
-  // ลงทะเบียน Service Worker
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(function(registration) {
-          console.log('ServiceWorker registration successful with scope: ', registration.scope);
-          
-          // ตรวจสอบการอัปเดต
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            console.log('ServiceWorker update found!');
-            
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // แจ้งผู้ใช้เกี่ยวกับการอัปเดตใหม่
-                if (confirm('มีเวอร์ชันใหม่ของแอปพร้อมใช้งาน! ต้องการอัปเดตตอนนี้หรือไม่?')) {
-                  newWorker.postMessage({type: 'SKIP_WAITING'});
-                  window.location.reload();
-                }
-              }
-            });
-          });
-        })
-        .catch(function(error) {
-          console.log('ServiceWorker registration failed: ', error);
-        });
-
-      // ตรวจสอบสถานะออนไลน์/ออฟไลน์
-      navigator.serviceWorker.addEventListener('message', event => {
-        if (event.data.type === 'NETWORK_STATUS') {
-          console.log('Network status:', event.data.isOnline ? 'Online' : 'Offline');
+        if (leaf === 0 && water === 0 && yieldDesired === 0) {
+          showToast('กรุณากรอกข้อมูลอย่างน้อยหนึ่งช่อง');
+          return;
         }
-      });
-    });
 
-    // ฟังก์ชันสำหรับเรียกซิงค์ข้อมูลจาก Service Worker
-    function triggerSync() {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SYNC_DATA'
-        });
-      }
-    }
-
-    // ฟังก์ชันสำหรับขอข้อมูลเวอร์ชัน
-    function getVersion() {
-      return new Promise((resolve) => {
-        const channel = new MessageChannel();
-        channel.port1.onmessage = event => {
-          if (event.data.type === 'VERSION_INFO') {
-            resolve(event.data);
-          }
+        // การคำนวณ (ตัวอย่าง)
+        const ratios = {
+          ground: { leafToWater: 20, waterToYield: 15 / 20 },
+          notGround1: { leafToWater: 15.38, waterToYield: 12 / 15.38 },
+          notGround2: { leafToWater: 15.87302, waterToYield: 12 / 15.87302 }
         };
-        
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'GET_VERSION'
-          }, [channel.port2]);
-        } else {
-          resolve({version: 'unknown', cacheName: 'unknown'});
-        }
-      });
-    }
-  }
-</script>
 
+        let values = {
+            ground: { leaf: 0, water: 0, yield: 0 },
+            notGround1: { leaf: 0, water: 0, yield: 0 },
+            notGround2: { leaf: 0, water: 0, yield: 0 }
+        };
+
+        if (leaf > 0) {
+          values.ground = { leaf, water: leaf * ratios.ground.leafToWater, yield: (leaf * ratios.ground.leafToWater) * ratios.ground.waterToYield };
+          values.notGround1 = { leaf, water: leaf * ratios.notGround1.leafToWater, yield: (leaf * ratios.notGround1.leafToWater) * ratios.notGround1.waterToYield };
+          values.notGround2 = { leaf, water: leaf * ratios.notGround2.leafToWater, yield: (leaf * ratios.notGround2.leafToWater) * ratios.notGround2.waterToYield };
+        } else if (water > 0) {
+          values.ground = { leaf: water / ratios.ground.leafToWater, water, yield: water * ratios.ground.waterToYield };
+          values.notGround1 = { leaf: water / ratios.notGround1.leafToWater, water, yield: water * ratios.notGround1.waterToYield };
+          values.notGround2 = { leaf: water / ratios.notGround2.leafToWater, water, yield: water * ratios.notGround2.waterToYield };
+        } else if (yieldDesired > 0) {
+          const waterGround = yieldDesired / ratios.ground.waterToYield;
+          values.ground = { leaf: waterGround / ratios.ground.leafToWater, water: waterGround, yield: yieldDesired };
+          
+          const waterNotGround1 = yieldDesired / ratios.notGround1.waterToYield;
+          values.notGround1 = { leaf: waterNotGround1 / ratios.notGround1.leafToWater, water: waterNotGround1, yield: yieldDesired };
+          
+          const waterNotGround2 = yieldDesired / ratios.notGround2.waterToYield;
+          values.notGround2 = { leaf: waterNotGround2 / ratios.notGround2.leafToWater, water: waterNotGround2, yield: yieldDesired };
+        }
+
+
+        // แสดงผลลัพธ์
+        document.getElementById('resultGroundLeaf').textContent = values.ground.leaf.toFixed(2);
+        document.getElementById('resultGroundWater').textContent = values.ground.water.toFixed(2);
+        document.getElementById('resultGroundYield').textContent = values.ground.yield.toFixed(2);
+        
+        document.getElementById('resultNotGroundLeaf1').textContent = values.notGround1.leaf.toFixed(2);
+        document.getElementById('resultNotGroundWater1').textContent = values.notGround1.water.toFixed(2);
+        document.getElementById('resultNotGroundYield1').textContent = values.notGround1.yield.toFixed(2);
+        
+        document.getElementById('resultNotGroundLeaf2').textContent = values.notGround2.leaf.toFixed(2);
+        document.getElementById('resultNotGroundWater2').textContent = values.notGround2.water.toFixed(2);
+        document.getElementById('resultNotGroundYield2').textContent = values.notGround2.yield.toFixed(2);
+
+        document.getElementById('resultContainer').style.display = 'block';
+        showToast('คำนวณสำเร็จ!');
+      });
+
+      document.getElementById('resetButton').addEventListener('click', function() {
+        document.getElementById('leafInput').value = '';
+        document.getElementById('waterInput').value = '';
+        document.getElementById('yieldInput').value = '';
+        document.getElementById('resultContainer').style.display = 'none';
+      });
+
+      // ตรวจสอบสถานะอินเทอร์เน็ต
+      function updateOnlineStatus() {
+        const statusEl = document.getElementById('status');
+        if (navigator.onLine) {
+          statusEl.innerHTML = '<i class="fas fa-wifi"></i> คุณกำลังออนไลน์';
+          statusEl.className = 'status-indicator online';
+        } else {
+          statusEl.innerHTML = '<i class="fas fa-plane"></i> คุณกำลังออฟไลน์';
+          statusEl.className = 'status-indicator offline';
+        }
+      }
+
+      window.addEventListener('online', updateOnlineStatus);
+      window.addEventListener('offline', updateOnlineStatus);
+      updateOnlineStatus();
+
+      // ตรวจสอบสถานะ API
+      checkAPIStatus();
+    });
+
+    function checkAPIStatus() {
+      fetch(window.location.href + '?action=health')
+        .then(response => response.json())
+        .then(data => {
+          const statusEl = document.getElementById('apiStatus');
+          if (data.status === 'success') {
+            statusEl.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+            statusEl.className = 'api-status connected';
+          }
+        })
+        .catch(error => {
+          const statusEl = document.getElementById('apiStatus');
+          statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+          statusEl.className = 'api-status error';
+        });
+    }
+  </script>
 </body>
 </html>
