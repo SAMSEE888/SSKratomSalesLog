@@ -32,6 +32,9 @@ function doGet(e) {
 /**
  * ส่งคืนไฟล์ HTML หลัก
  */
+function serveHTML() {
+  // โค้ด HTML/JS ทั้งหมดจะอยู่ในส่วนนี้
+  const htmlContent = `
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -303,7 +306,7 @@ function doGet(e) {
             balance: parseInt(document.getElementById('balance').textContent.replace(/,/g, '')) || 0
         };
         
-        // ⭐⭐ ขั้นตอนที่ 1: การยืนยันข้อมูลก่อนบันทึก (ตามที่ร้องขอ) ⭐⭐
+        // ⭐⭐ ขั้นตอนที่ 1: การยืนยันข้อมูลก่อนบันทึก ⭐⭐
         const confirmMessage = `
             คุณยืนยันที่จะบันทึกข้อมูลนี้หรือไม่?
             
@@ -382,7 +385,7 @@ function doGet(e) {
         }, 3000);
       }
 
-      // การคำนวณวัตถุดิบ
+      // การคำนวณวัตถุดิบ (ปรับปรุงให้รองรับการคำนวณแบบอื่นด้วย)
       document.getElementById('calculateButton').addEventListener('click', function() {
         const leaf = parseFloat(document.getElementById('leafInput').value) || 0;
         const water = parseFloat(document.getElementById('waterInput').value) || 0;
@@ -393,7 +396,6 @@ function doGet(e) {
           return;
         }
 
-        // การคำนวณ (ตัวอย่าง)
         const ratios = {
           ground: { leafToWater: 20, waterToYield: 15 / 20 },
           notGround1: { leafToWater: 15.38, waterToYield: 12 / 15.38 },
@@ -424,7 +426,6 @@ function doGet(e) {
           const waterNotGround2 = yieldDesired / ratios.notGround2.waterToYield;
           values.notGround2 = { leaf: waterNotGround2 / ratios.notGround2.leafToWater, water: waterNotGround2, yield: yieldDesired };
         }
-
 
         // แสดงผลลัพธ์
         document.getElementById('resultGroundLeaf').textContent = values.ground.leaf.toFixed(2);
@@ -489,7 +490,7 @@ function doGet(e) {
   </script>
 </body>
 </html>
-`;
+  `;
   
   return HtmlService.createHtmlOutput(htmlContent)
     .setTitle('SSKratomYMT - บันทึกยอดขาย')
