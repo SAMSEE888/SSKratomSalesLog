@@ -11,11 +11,8 @@ const SHEET_NAME = 'SaleForm';
  */
 function doGet(e) {
   try {
-    // ตรวจสอบพารามิเตอร์ที่ส่งมา
     const action = e.parameter.action;
-    const page = e.parameter.page;
     
-    // หากมีการระบุ action หรือ page พิเศษ
     if (action === 'getData' || action === 'history') {
       return handleDataRequest(e);
     }
@@ -24,7 +21,6 @@ function doGet(e) {
       return handleHealthCheck();
     }
     
-    // คืนค่า HTML หลัก
     return serveHTML();
     
   } catch (error) {
@@ -36,8 +32,6 @@ function doGet(e) {
 /**
  * ส่งคืนไฟล์ HTML หลัก
  */
-function serveHTML() {
-  const htmlContent = `
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -148,7 +142,6 @@ function serveHTML() {
     </div>
 
     <div id="sales-tab" class="tab-content active">
-      <!-- เนื้อหาแบบฟอร์มบันทึกยอดขาย -->
       <form id="saleForm">
         <div class="form-card">
           <div class="card-header"><i class="fas fa-shopping-cart"></i><h2>ข้อมูลการขาย</h2></div>
@@ -210,13 +203,13 @@ function serveHTML() {
       <div class="form-card">
         <div class="card-header"><i class="fas fa-info-circle"></i><h2>เกี่ยวกับ SSKratomYMT</h2></div>
         <div style="line-height: 1.8;">
-          <p><strong>เวอร์ชัน:</strong> 2.0.0</p>
+          <p><strong>เวอร์ชัน:</strong> 2.0.1 (แก้ไข Duplicate Check)</p>
           <p><strong>พัฒนาโดย:</strong> ส.สามสี</p>
           <p><strong>คุณสมบัติ:</strong></p>
           <ul style="margin-left: 20px; margin-bottom: 15px;">
             <li>บันทึกยอดขายน้ำกระท่อม</li>
             <li>คำนวณวัตถุดิบการผลิต</li>
-            <li>ป้องกันการบันทึกข้อมูลซ้ำ</li>
+            <li>**ป้องกันการบันทึกข้อมูลซ้ำ (ตรวจเฉพาะวันที่)**</li>
             <li>ทำงานแบบออฟไลน์ได้</li>
             <li>รองรับ PWA</li>
           </ul>
@@ -281,29 +274,56 @@ function serveHTML() {
         });
       });
 
-      // การส่งฟอร์ม
+      // ⭐⭐⭐ โค้ดที่แก้ไขเพื่อป้องกันการบันทึกซ้ำซ้อนจากฝั่งไคลเอนต์ & ยืนยันข้อมูล ⭐⭐⭐
+      let isSubmitting = false; // สถานะการส่งฟอร์ม
+
       document.getElementById('saleForm').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const formData = {
-          date: document.getElementById('date').value,
-          sold: parseInt(document.getElementById('sold').value) || 0,
-          pending: parseInt(document.getElementById('pending').value) || 0,
-          cleared: parseInt(document.getElementById('cleared').value) || 0,
-          pipeFee: parseInt(document.getElementById('pipeFee').value) || 0,
-          shareFee: parseInt(document.getElementById('shareFee').value) || 0,
-          otherFee: parseInt(document.getElementById('otherFee').value) || 0,
-          saveFee: parseInt(document.getElementById('saveFee').value) || 0,
-          revenue: parseInt(document.getElementById('revenue').textContent.replace(/,/g, '')) || 0,
-          expense: parseInt(document.getElementById('expense').textContent.replace(/,/g, '')) || 0,
-          balance: parseInt(document.getElementById('balance').textContent.replace(/,/g, '')) || 0
-        };
-
         const submitBtn = document.getElementById('submitBtn');
         const msgBox = document.getElementById('msg');
+        
+        // การป้องกันหลัก: ถ้ากำลังส่งอยู่ ให้หยุดทันที
+        if (isSubmitting) {
+            console.log("กำลังส่งข้อมูลอยู่, ข้ามการส่งซ้ำ");
+            return;
+        }
+        
+        const formData = {
+            date: document.getElementById('date').value,
+            sold: parseInt(document.getElementById('sold').value) || 0,
+            pending: parseInt(document.getElementById('pending').value) || 0,
+            cleared: parseInt(document.getElementById('cleared').value) || 0,
+            pipeFee: parseInt(document.getElementById('pipeFee').value) || 0,
+            shareFee: parseInt(document.getElementById('shareFee').value) || 0,
+            otherFee: parseInt(document.getElementById('otherFee').value) || 0,
+            saveFee: parseInt(document.getElementById('saveFee').value) || 0,
+            revenue: parseInt(document.getElementById('revenue').textContent.replace(/,/g, '')) || 0,
+            expense: parseInt(document.getElementById('expense').textContent.replace(/,/g, '')) || 0,
+            balance: parseInt(document.getElementById('balance').textContent.replace(/,/g, '')) || 0
+        };
+        
+        // ⭐⭐ ขั้นตอนที่ 1: การยืนยันข้อมูลก่อนบันทึก (ตามที่ร้องขอ) ⭐⭐
+        const confirmMessage = `
+            คุณยืนยันที่จะบันทึกข้อมูลนี้หรือไม่?
+            
+            วันที่: ${new Date(formData.date).toLocaleDateString('th-TH')}
+            จำนวนที่ขาย: ${formData.sold} ขวด
+            ค้างน้ำดิบ: ${formData.pending} ขวด
+            เคลียร์ยอดค้างน้ำดิบ: ${formData.cleared} ขวด
+            ยอดคงเหลือ: ${formData.balance.toLocaleString()} บาท
+        `;
 
+        if (!confirm(confirmMessage)) {
+            // ถ้าผู้ใช้กด Cancel
+            return;
+        }
+
+        // ⭐⭐ ขั้นตอนที่ 2: เริ่มต้นการส่งข้อมูล ⭐⭐
+        isSubmitting = true; // ตั้งค่าสถานะเป็นกำลังส่ง
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
+        msgBox.style.display = 'none';
 
         // ส่งข้อมูลไปยัง Google Apps Script
         fetch(window.location.href, {
@@ -313,7 +333,12 @@ function serveHTML() {
           },
           body: JSON.stringify(formData)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP Error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
           if (data.status === 'success') {
             msgBox.className = 'msg-box success';
@@ -328,19 +353,24 @@ function serveHTML() {
             // แสดง toast
             showToast('บันทึกข้อมูลสำเร็จ!');
           } else {
-            throw new Error(data.message);
+            throw new Error(data.message || 'บันทึกข้อมูลไม่สำเร็จ');
           }
         })
         .catch(error => {
+          console.error('Submission error:', error);
           msgBox.className = 'msg-box error';
-          msgBox.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + error.message;
+          msgBox.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (error.message.includes('HTTP Error') ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message : error.message);
           msgBox.style.display = 'block';
         })
         .finally(() => {
+          // ยกเลิกสถานะกำลังส่งเมื่อกระบวนการเสร็จสิ้น
+          isSubmitting = false; 
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล';
         });
       });
+      // ⭐⭐⭐ สิ้นสุดโค้ดที่แก้ไขเพื่อป้องกันการบันทึกซ้ำซ้อนจากฝั่งไคลเอนต์ & ยืนยันข้อมูล ⭐⭐⭐
+
 
       // ฟังก์ชันแสดง toast
       function showToast(message) {
@@ -359,7 +389,7 @@ function serveHTML() {
         const yieldDesired = parseFloat(document.getElementById('yieldInput').value) || 0;
 
         if (leaf === 0 && water === 0 && yieldDesired === 0) {
-          alert('กรุณากรอกข้อมูลอย่างน้อยหนึ่งช่อง');
+          showToast('กรุณากรอกข้อมูลอย่างน้อยหนึ่งช่อง');
           return;
         }
 
@@ -370,12 +400,31 @@ function serveHTML() {
           notGround2: { leafToWater: 15.87302, waterToYield: 12 / 15.87302 }
         };
 
-        let values = {};
+        let values = {
+            ground: { leaf: 0, water: 0, yield: 0 },
+            notGround1: { leaf: 0, water: 0, yield: 0 },
+            notGround2: { leaf: 0, water: 0, yield: 0 }
+        };
+
         if (leaf > 0) {
           values.ground = { leaf, water: leaf * ratios.ground.leafToWater, yield: (leaf * ratios.ground.leafToWater) * ratios.ground.waterToYield };
           values.notGround1 = { leaf, water: leaf * ratios.notGround1.leafToWater, yield: (leaf * ratios.notGround1.leafToWater) * ratios.notGround1.waterToYield };
           values.notGround2 = { leaf, water: leaf * ratios.notGround2.leafToWater, yield: (leaf * ratios.notGround2.leafToWater) * ratios.notGround2.waterToYield };
+        } else if (water > 0) {
+          values.ground = { leaf: water / ratios.ground.leafToWater, water, yield: water * ratios.ground.waterToYield };
+          values.notGround1 = { leaf: water / ratios.notGround1.leafToWater, water, yield: water * ratios.notGround1.waterToYield };
+          values.notGround2 = { leaf: water / ratios.notGround2.leafToWater, water, yield: water * ratios.notGround2.waterToYield };
+        } else if (yieldDesired > 0) {
+          const waterGround = yieldDesired / ratios.ground.waterToYield;
+          values.ground = { leaf: waterGround / ratios.ground.leafToWater, water: waterGround, yield: yieldDesired };
+          
+          const waterNotGround1 = yieldDesired / ratios.notGround1.waterToYield;
+          values.notGround1 = { leaf: waterNotGround1 / ratios.notGround1.leafToWater, water: waterNotGround1, yield: yieldDesired };
+          
+          const waterNotGround2 = yieldDesired / ratios.notGround2.waterToYield;
+          values.notGround2 = { leaf: waterNotGround2 / ratios.notGround2.leafToWater, water: waterNotGround2, yield: yieldDesired };
         }
+
 
         // แสดงผลลัพธ์
         document.getElementById('resultGroundLeaf').textContent = values.ground.leaf.toFixed(2);
@@ -440,7 +489,7 @@ function serveHTML() {
   </script>
 </body>
 </html>
-  `;
+`;
   
   return HtmlService.createHtmlOutput(htmlContent)
     .setTitle('SSKratomYMT - บันทึกยอดขาย')
@@ -455,7 +504,7 @@ function handleDataRequest(e) {
   
   try {
     if (action === 'getData' || action === 'history') {
-      const history = getSalesHistory();
+      const history = getSalesHistory(); // ต้องมีฟังก์ชัน getSalesHistory() อยู่ในโค้ดจริงของคุณ
       return ContentService.createTextOutput(JSON.stringify(history))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -479,7 +528,7 @@ function handleHealthCheck() {
       timestamp: new Date().toISOString(),
       totalRecords: lastRow > 0 ? lastRow - 1 : 0,
       sheetName: SHEET_NAME,
-      appVersion: '2.0.0'
+      appVersion: '2.0.1'
     })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (error) {
@@ -517,31 +566,6 @@ function createErrorResponse(message) {
 }
 
 /**
- * ฟังก์ชันสำหรับทดสอบ doGet
- */
-function testDoGet() {
-  console.log('=== ทดสอบฟังก์ชัน doGet ===');
-  
-  // ทดสอบ serveHTML
-  try {
-    const htmlOutput = serveHTML();
-    console.log('✅ serveHTML ทำงานปกติ');
-  } catch (error) {
-    console.error('❌ serveHTML ผิดพลาด:', error);
-  }
-  
-  // ทดสอบ health check
-  try {
-    const healthCheck = handleHealthCheck();
-    console.log('✅ Health check ทำงานปกติ');
-  } catch (error) {
-    console.error('❌ Health check ผิดพลาด:', error);
-  }
-  
-  console.log('=== การทดสอบ doGet เสร็จสิ้น ===');
-  return 'การทดสอบ doGet เสร็จสิ้น';
-}
-/**
  * ฟังก์ชันหลักที่ทำงานเมื่อมีการส่งข้อมูลแบบ POST เข้ามา
  */
 function doPost(e) {
@@ -561,11 +585,6 @@ function doPost(e) {
     // แปลงข้อมูลที่ส่งมา (JSON)
     const requestData = JSON.parse(e.postData.contents);
     
-    // ตรวจสอบว่ามี action พิเศษหรือไม่
-    if (requestData.action === 'checkDuplicate') {
-      return checkDuplicateData(sheet, requestData);
-    }
-    
     // ตรวจสอบว่าข้อมูลที่ส่งมาเป็น array (สำหรับ offline sync) หรือ object เดียว
     const records = Array.isArray(requestData) ? requestData : [requestData];
     
@@ -574,14 +593,14 @@ function doPost(e) {
     
     // วนลูปเพื่อบันทึกทุกรายการข้อมูล
     records.forEach(record => {
-      // ตรวจสอบข้อมูลซ้ำก่อนบันทึก
+      // ⭐⭐ จุดแก้ไข: ตรวจสอบข้อมูลซ้ำโดยดูแค่ 'Date' เท่านั้น ⭐⭐
       if (isDuplicateRecord(sheet, record)) {
-        console.log(`พบข้อมูลซ้ำสำหรับวันที่: ${record.date}`);
+        console.log(`พบข้อมูลซ้ำสำหรับวันที่: ${record.date} (เนื่องจากบันทึกข้อมูลวันนี้ไปแล้ว)`);
         duplicateCount++;
         return; // ข้ามการบันทึกข้อมูลซ้ำ
       }
       
-      // ✨ แก้ไข: จัดรูปแบบวันที่และเวลาสำหรับโซนเวลาประเทศไทย
+      // จัดรูปแบบวันที่และเวลาสำหรับโซนเวลาประเทศไทย
       const timestamp = Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyy-MM-dd HH:mm:ss");
       
       const newRow = [
@@ -607,7 +626,7 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify({ 
         'status': 'success', 
-        'message': `บันทึกข้อมูลสำเร็จ ${successCount} รายการ${duplicateCount > 0 ? `, พบข้อมูลซ้ำ ${duplicateCount} รายการ` : ''}`,
+        'message': `บันทึกข้อมูลสำเร็จ ${successCount} รายการ${duplicateCount > 0 ? `, พบข้อมูลซ้ำ ${duplicateCount} รายการ (ไม่บันทึกซ้ำ)` : ''}`,
         'records_count': successCount,
         'duplicates_count': duplicateCount
       }))
@@ -626,7 +645,7 @@ function doPost(e) {
 }
 
 /**
- * ฟังก์ชันตรวจสอบข้อมูลซ้ำ
+ * ฟังก์ชันตรวจสอบข้อมูลซ้ำ (แก้ไขให้ตรวจสอบเฉพาะ 'Date' เท่านั้น)
  */
 function isDuplicateRecord(sheet, record) {
   try {
@@ -636,29 +655,15 @@ function isDuplicateRecord(sheet, record) {
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
       
-      // ตรวจสอบวันที่
+      // ตรวจสอบวันที่ (คอลัมน์ 0)
       if (row[0] && record.date) {
         const existingDate = new Date(row[0]);
         const newDate = new Date(record.date);
         
         // เปรียบเทียบวันที่ (ไม่รวมเวลา)
         if (existingDate.toDateString() === newDate.toDateString()) {
-          // ตรวจสอบข้อมูลการขาย
-          const existingSold = Number(row[1]) || 0;
-          const newSold = Number(record.sold) || 0;
-          
-          const existingPending = Number(row[2]) || 0;
-          const newPending = Number(record.pending) || 0;
-          
-          const existingCleared = Number(row[3]) || 0;
-          const newCleared = Number(record.cleared) || 0;
-          
-          // ถ้าข้อมูลการขายเหมือนกันทั้งหมด ถือว่าซ้ำ
-          if (existingSold === newSold && 
-              existingPending === newPending && 
-              existingCleared === newCleared) {
-            return true;
-          }
+          // ถ้าวันที่ตรงกัน ถือว่าซ้ำ (ตามความต้องการของผู้ใช้)
+          return true;
         }
       }
     }
@@ -671,85 +676,28 @@ function isDuplicateRecord(sheet, record) {
 }
 
 /**
- * ฟังก์ชันตรวจสอบข้อมูลซ้ำแบบเฉพาะ
+ * ฟังก์ชันสำหรับทดสอบ (ส่วนนี้ใช้งานใน Apps Script Editor เท่านั้น)
  */
-function checkDuplicateData(sheet, requestData) {
+function testDoGet() {
+  console.log('=== ทดสอบฟังก์ชัน doGet ===');
   try {
-    const isDuplicate = isDuplicateRecord(sheet, requestData);
-    
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        isDuplicate: isDuplicate,
-        message: isDuplicate ? 'พบข้อมูลซ้ำ' : 'ไม่พบข้อมูลซ้ำ'
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-      
+    const htmlOutput = serveHTML();
+    console.log('✅ serveHTML ทำงานปกติ');
   } catch (error) {
-    console.error('Error in checkDuplicateData:', error);
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        isDuplicate: false,
-        message: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    console.error('❌ serveHTML ผิดพลาด:', error);
   }
+  try {
+    const healthCheck = handleHealthCheck();
+    console.log('✅ Health check ทำงานปกติ');
+  } catch (error) {
+    console.error('❌ Health check ผิดพลาด:', error);
+  }
+  console.log('=== การทดสอบ doGet เสร็จสิ้น ===');
+  return 'การทดสอบ doGet เสร็จสิ้น';
 }
 
-/**
- * ฟังก์ชันสำหรับลบข้อมูลซ้ำ (optional)
- */
-function removeDuplicateRecords() {
-  try {
-    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
-    const uniqueRecords = [];
-    const seen = new Set();
-    let duplicateCount = 0;
-    
-    // เพิ่มหัวข้อคอลัมน์
-    uniqueRecords.push(data[0]);
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const key = `${row[0]}-${row[1]}-${row[2]}-${row[3]}`; // วันที่-ขาย-ค้าง-เคลียร์
-      
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueRecords.push(row);
-      } else {
-        duplicateCount++;
-      }
-    }
-    
-    // ลบข้อมูลทั้งหมดและเขียนข้อมูลที่ไม่ซ้ำกลับไป
-    sheet.clear();
-    if (uniqueRecords.length > 0) {
-      sheet.getRange(1, 1, uniqueRecords.length, uniqueRecords[0].length).setValues(uniqueRecords);
-    }
-    
-    console.log(`ลบข้อมูลซ้ำ ${duplicateCount} รายการสำเร็จ`);
-    return `ลบข้อมูลซ้ำ ${duplicateCount} รายการสำเร็จ`;
-    
-  } catch (error) {
-    console.error('Error removing duplicates:', error);
-    return 'Error: ' + error.toString();
-  }
-}
-
-/**
- * ฟังก์ชันสำหรับทดสอบ
- */
-function testDuplicateCheck() {
-  const testRecord = {
-    date: '2024-01-01',
-    sold: 10,
-    pending: 2,
-    cleared: 1
-  };
-  
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-  const isDuplicate = isDuplicateRecord(sheet, testRecord);
-  
-  console.log('Test result:', isDuplicate ? 'Duplicate found' : 'No duplicate');
-  return isDuplicate;
+function getSalesHistory() {
+    // ฟังก์ชันนี้ไม่ได้รวมอยู่ในโค้ดเดิมของคุณ แต่จำเป็นต้องมี
+    // เพื่อให้ handleDataRequest ทำงานได้ จึงใส่เป็นฟังก์ชันเปล่าไว้
+    return [];
 }
